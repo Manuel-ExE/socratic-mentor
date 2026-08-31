@@ -1,15 +1,23 @@
 :root {
-  --bg: #0f1419;
-  --panel: #1a2332;
-  --border: #2d3a4f;
-  --text: #e8eef7;
-  --muted: #8b9bb4;
-  --mentor: #1e3a5f;
-  --student: #243528;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --danger: #ef4444;
-  --radius: 14px;
+  --bg: #0a0614;
+  --bg-mid: #120a28;
+  --panel: rgba(255, 255, 255, 0.06);
+  --panel-strong: rgba(255, 255, 255, 0.1);
+  --border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.22);
+  --text: #f4f0ff;
+  --muted: #a89bc8;
+  --accent: #e879f9;
+  --accent-soft: rgba(232, 121, 249, 0.15);
+  --accent-hover: #f0abfc;
+  --mentor: rgba(139, 92, 246, 0.18);
+  --student: rgba(232, 121, 249, 0.14);
+  --success: #86efac;
+  --danger: #fca5a5;
+  --radius: 16px;
+  --radius-pill: 999px;
+  --blur: 20px;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 * {
@@ -24,10 +32,17 @@ body {
 }
 
 body {
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  background: radial-gradient(ellipse at top, #1a2744 0%, var(--bg) 55%);
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  background-image:
+    radial-gradient(ellipse 80% 60% at 70% 20%, rgba(124, 58, 237, 0.35) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 20% 80%, rgba(192, 38, 211, 0.2) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 40% at 90% 90%, rgba(79, 70, 229, 0.25) 0%, transparent 45%),
+    linear-gradient(180deg, #0a0614 0%, #120a28 50%, #0a0614 100%);
+  background-attachment: fixed;
   color: var(--text);
   min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
