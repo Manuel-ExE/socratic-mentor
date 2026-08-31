@@ -73,22 +73,47 @@ function parseJson(text: string): TutorResult {
   }
 }
 
+function friendlyError(status: number, errMsg: string): string {
+  const lower = errMsg.toLowerCase();
+  if (
+    lower.includes("incorrect api key") ||
+    lower.includes("invalid api key") ||
+    lower.includes("invalid_api_key") ||
+    lower.includes("authentication") ||
+    status === 401
+  ) {
+    return "Invalid OpenAI API key. Create a new key at platform.openai.com/api-keys, set OPENAI_API_KEY in Vercel, and Redeploy.";
+  }
+  if (lower.includes("insufficient_quota") || lower.includes("billing") || lower.includes("quota")) {
+    return "OpenAI account has no credits / quota. Add billing at platform.openai.com/account/billing.";
+  }
+  if (status === 429 || lower.includes("rate limit")) {
+    return "OpenAI rate limit hit. Wait a minute and try again.";
+  }
+  if (lower.includes("model") || status === 404) {
+    return "Model not available. Set AI_MODEL to gpt-4o-mini in Vercel env and Redeploy.";
+  }
+  // Show a short sanitized reason so we can debug
+  const short = errMsg.replace(/\s+/g, " ").slice(0, 160);
+  return `OpenAI error (${status || "?"}): ${short || "unknown"}. Check Vercel logs and your API key/billing.`;
+}
+
 export async function socraticReply(
   history: ChatMessage[],
   userMessage: string
 ): Promise<TutorResult> {
-  const key = process.env.OPENAI_API_KEY;
+  const key = process.env.OPENAI_API_KEY?.trim();
   if (!key) {
     return {
       message:
-        "Server is missing OPENAI_API_KEY. Add it in Vercel → Settings → Environment Variables, then Redeploy.",
+        "Server is missing OPENAI_API_KEY. Add it in Vercel → Settings → Environment Variables (exact name), then Redeploy.",
       is_correct: null,
       hint_level: 0,
       session_complete: false,
     };
   }
 
-  const model = process.env.AI_MODEL || "gpt-4o-mini";
+  const model = process.env.AI_MODEL?.trim() || "gpt-4o-mini";
 
   const messages = [
     { role: "system" as const, content: SYSTEM },
@@ -115,38 +140,17 @@ export async function socraticReply(
       }),
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
       const errMsg =
-        data?.error?.message || data?.error?.code || `HTTP ${res.status}`;
-      console.error("[socraticReply]", errMsg);
-      const lower = String(errMsg).toLowerCase();
-      let friendly =
-        "Sorry, I'm having trouble thinking right now. Please try again in a moment.";
-      if (
-        lower.includes("api key") ||
-        lower.includes("incorrect api") ||
-        lower.includes("invalid") ||
-        res.status === 401 ||
-        res.status === 403
-      ) {
-        friendly =
-          "API key problem. Check OPENAI_API_KEY in Vercel → Settings → Environment Variables, then Redeploy.";
-      } else if (lower.includes("model") || res.status === 404) {
-        friendly =
-          "Model not available. Set AI_MODEL to a valid OpenAI model (e.g. gpt-4o-mini) and Redeploy.";
-      } else if (
-        lower.includes("quota") ||
-        lower.includes("rate") ||
-        lower.includes("billing") ||
-        res.status === 429
-      ) {
-        friendly =
-          "OpenAI rate limit or billing issue. Check your OpenAI usage/billing and try again.";
-      }
+        data?.error?.message ||
+        data?.error?.code ||
+        data?.error?.type ||
+        `HTTP ${res.status}`;
+      console.error("[socraticReply]", res.status, errMsg);
       return {
-        message: friendly,
+        message: friendlyError(res.status, String(errMsg)),
         is_correct: null,
         hint_level: 0,
         session_complete: false,
@@ -154,13 +158,21 @@ export async function socraticReply(
     }
 
     const text = data?.choices?.[0]?.message?.content || "";
+    if (!text) {
+      console.error("[socraticReply] empty content", JSON.stringify(data).slice(0, 300));
+      return {
+        message: "OpenAI returned an empty reply. Try again, or check model name (gpt-4o-mini).",
+        is_correct: null,
+        hint_level: 0,
+        session_complete: false,
+      };
+    }
     return parseJson(text);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[socraticReply]", msg);
+    console.error("[socraticReply] fetch failed", msg);
     return {
-      message:
-        "Sorry, I'm having trouble thinking right now. Please try again in a moment.",
+      message: `Network/server error talking to OpenAI: ${msg.slice(0, 120)}. Try again in a moment.`,
       is_correct: null,
       hint_level: 0,
       session_complete: false,
