@@ -24,7 +24,7 @@ No Telegram. No Python on your PC required for production.
 | Name | Value |
 |------|--------|
 | `GEMINI_API_KEY` | your key from [Google AI Studio](https://aistudio.google.com/apikey) |
-| `AI_MODEL` (optional) | e.g. `gemini-2.0-flash` (default) |
+| `AI_MODEL` (optional) | e.g. `gemini-3.6-flash` (default) |
 
 5. Click **Deploy**.
 
@@ -74,7 +74,7 @@ socratic-vercel/
 ## Notes
 
 - API key stays on the **server** (Vercel env) — never exposed in the browser.
-- Default model is `gemini-2.0-flash` (override with `AI_MODEL`).
+- Default model is `gemini-3.6-flash` (override with `AI_MODEL`).
 - Free Vercel + free Gemini tier is enough for an MVP. Watch Gemini quota if the site is public; there is no built-in rate limit yet.
 - Replies are structured JSON (`message`, `is_correct`, `hint_level`, `session_complete`). The UI shows correct/incorrect badges and a session-complete note when present.
 - If replies fail, check Vercel → Project → Settings → Environment Variables and **Logs** (errors are logged server-side).

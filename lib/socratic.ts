@@ -92,7 +92,7 @@ export async function socraticReply(
 
   const genAI = new GoogleGenerativeAI(key);
   const model = genAI.getGenerativeModel({
-    model: process.env.AI_MODEL || "gemini-2.0-flash",
+    model: process.env.AI_MODEL || "gemini-3.6-flash",
     systemInstruction: SYSTEM,
     generationConfig: {
       temperature: 0.6,
@@ -116,9 +116,21 @@ export async function socraticReply(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[socraticReply]", msg);
+    const lower = msg.toLowerCase();
+    let friendly =
+      "Sorry, I'm having trouble thinking right now. Please try again in a moment.";
+    if (lower.includes("api key") || lower.includes("api_key") || lower.includes("401") || lower.includes("403")) {
+      friendly =
+        "API key problem. Check GEMINI_API_KEY in Vercel → Settings → Environment Variables, then Redeploy.";
+    } else if (lower.includes("not found") || lower.includes("model") || lower.includes("404")) {
+      friendly =
+        "Model not available. Set AI_MODEL to a current Gemini model (e.g. gemini-3.6-flash) and Redeploy.";
+    } else if (lower.includes("quota") || lower.includes("rate") || lower.includes("429")) {
+      friendly =
+        "Gemini rate limit or quota hit. Wait a minute and try again, or check your Google AI Studio quota.";
+    }
     return {
-      message:
-        "Sorry, I'm having trouble thinking right now. Please try again in a moment.",
+      message: friendly,
       is_correct: null,
       hint_level: 0,
       session_complete: false,
