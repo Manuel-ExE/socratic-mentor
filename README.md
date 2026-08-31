@@ -2,8 +2,7 @@
 
 A real website you can host on **[Vercel](https://vercel.com)** for free.
 
-Same tutoring idea: guides students instead of dumping answers.  
-No Telegram. No Python on your PC required for production.
+Guides students with Socratic questions instead of dumping answers.
 
 ---
 
@@ -23,8 +22,8 @@ No Telegram. No Python on your PC required for production.
 
 | Name | Value |
 |------|--------|
-| `GEMINI_API_KEY` | your key from [Google AI Studio](https://aistudio.google.com/apikey) |
-| `AI_MODEL` (optional) | e.g. `gemini-3.6-flash` (default) |
+| `OPENAI_API_KEY` | your key from [OpenAI API keys](https://platform.openai.com/api-keys) |
+| `AI_MODEL` (optional) | e.g. `gpt-4o-mini` (default) |
 
 5. Click **Deploy**.
 
@@ -33,8 +32,6 @@ No Telegram. No Python on your PC required for production.
 Vercel gives you a URL like:
 
 `https://socratic-mentor-xxxx.vercel.app`
-
-That link works for anyone on the internet.
 
 ---
 
@@ -45,7 +42,7 @@ Need **Node.js 18+** installed.
 ```bash
 cd socratic-vercel
 cp .env.example .env.local
-# edit .env.local and set GEMINI_API_KEY=...
+# edit .env.local and set OPENAI_API_KEY=...
 
 npm install
 npm run dev
@@ -63,7 +60,7 @@ socratic-vercel/
 │   ├── page.tsx          # chat UI
 │   ├── layout.tsx
 │   ├── globals.css
-│   └── api/chat/route.ts # server talks to Gemini
+│   └── api/chat/route.ts # server talks to OpenAI
 ├── lib/socratic.ts       # Socratic rules + JSON parsing
 ├── package.json
 └── README.md
@@ -74,7 +71,6 @@ socratic-vercel/
 ## Notes
 
 - API key stays on the **server** (Vercel env) — never exposed in the browser.
-- Default model is `gemini-3.6-flash` (override with `AI_MODEL`).
-- Free Vercel + free Gemini tier is enough for an MVP. Watch Gemini quota if the site is public; there is no built-in rate limit yet.
+- Default model is `gpt-4o-mini` (override with `AI_MODEL`).
 - Replies are structured JSON (`message`, `is_correct`, `hint_level`, `session_complete`). The UI shows correct/incorrect badges and a session-complete note when present.
-- If replies fail, check Vercel → Project → Settings → Environment Variables and **Logs** (errors are logged server-side).
+- If replies fail, check Vercel → Project → Settings → Environment Variables and **Logs**.

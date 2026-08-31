@@ -1,5 +1,3 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
@@ -79,58 +77,90 @@ export async function socraticReply(
   history: ChatMessage[],
   userMessage: string
 ): Promise<TutorResult> {
-  const key = process.env.GEMINI_API_KEY;
+  const key = process.env.OPENAI_API_KEY;
   if (!key) {
     return {
       message:
-        "Server is missing GEMINI_API_KEY. Add it in Vercel Environment Variables, then redeploy.",
+        "Server is missing OPENAI_API_KEY. Add it in Vercel → Settings → Environment Variables, then Redeploy.",
       is_correct: null,
       hint_level: 0,
       session_complete: false,
     };
   }
 
-  const genAI = new GoogleGenerativeAI(key);
-  const model = genAI.getGenerativeModel({
-    model: process.env.AI_MODEL || "gemini-3.6-flash",
-    systemInstruction: SYSTEM,
-    generationConfig: {
-      temperature: 0.6,
-      maxOutputTokens: 1024,
-      responseMimeType: "application/json",
-    },
-  });
+  const model = process.env.AI_MODEL || "gpt-4o-mini";
 
-  const contents = [
+  const messages = [
+    { role: "system" as const, content: SYSTEM },
     ...history.slice(-12).map((m) => ({
-      role: m.role === "user" ? ("user" as const) : ("model" as const),
-      parts: [{ text: m.content }],
+      role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+      content: m.content,
     })),
-    { role: "user" as const, parts: [{ text: userMessage }] },
+    { role: "user" as const, content: userMessage },
   ];
 
   try {
-    const result = await model.generateContent({ contents });
-    const text = result.response.text() || "";
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.6,
+        max_tokens: 1024,
+        response_format: { type: "json_object" },
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      const errMsg =
+        data?.error?.message || data?.error?.code || `HTTP ${res.status}`;
+      console.error("[socraticReply]", errMsg);
+      const lower = String(errMsg).toLowerCase();
+      let friendly =
+        "Sorry, I'm having trouble thinking right now. Please try again in a moment.";
+      if (
+        lower.includes("api key") ||
+        lower.includes("incorrect api") ||
+        lower.includes("invalid") ||
+        res.status === 401 ||
+        res.status === 403
+      ) {
+        friendly =
+          "API key problem. Check OPENAI_API_KEY in Vercel → Settings → Environment Variables, then Redeploy.";
+      } else if (lower.includes("model") || res.status === 404) {
+        friendly =
+          "Model not available. Set AI_MODEL to a valid OpenAI model (e.g. gpt-4o-mini) and Redeploy.";
+      } else if (
+        lower.includes("quota") ||
+        lower.includes("rate") ||
+        lower.includes("billing") ||
+        res.status === 429
+      ) {
+        friendly =
+          "OpenAI rate limit or billing issue. Check your OpenAI usage/billing and try again.";
+      }
+      return {
+        message: friendly,
+        is_correct: null,
+        hint_level: 0,
+        session_complete: false,
+      };
+    }
+
+    const text = data?.choices?.[0]?.message?.content || "";
     return parseJson(text);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("[socraticReply]", msg);
-    const lower = msg.toLowerCase();
-    let friendly =
-      "Sorry, I'm having trouble thinking right now. Please try again in a moment.";
-    if (lower.includes("api key") || lower.includes("api_key") || lower.includes("401") || lower.includes("403")) {
-      friendly =
-        "API key problem. Check GEMINI_API_KEY in Vercel → Settings → Environment Variables, then Redeploy.";
-    } else if (lower.includes("not found") || lower.includes("model") || lower.includes("404")) {
-      friendly =
-        "Model not available. Set AI_MODEL to a current Gemini model (e.g. gemini-3.6-flash) and Redeploy.";
-    } else if (lower.includes("quota") || lower.includes("rate") || lower.includes("429")) {
-      friendly =
-        "Gemini rate limit or quota hit. Wait a minute and try again, or check your Google AI Studio quota.";
-    }
     return {
-      message: friendly,
+      message:
+        "Sorry, I'm having trouble thinking right now. Please try again in a moment.",
       is_correct: null,
       hint_level: 0,
       session_complete: false,
