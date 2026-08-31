@@ -73,7 +73,7 @@ function parseJson(text: string): TutorResult {
   }
 }
 
-function friendlyError(status: number, errMsg: string): string {
+function friendlyOpenAI(status: number, errMsg: string): string {
   const lower = errMsg.toLowerCase();
   if (
     lower.includes("incorrect api key") ||
@@ -82,39 +82,46 @@ function friendlyError(status: number, errMsg: string): string {
     lower.includes("authentication") ||
     status === 401
   ) {
-    return "Invalid OpenAI API key. Create a new key at platform.openai.com/api-keys, set OPENAI_API_KEY in Vercel, and Redeploy.";
+    return "Invalid OpenAI API key. Fix OPENAI_API_KEY in Vercel and Redeploy — or add GEMINI_API_KEY instead.";
   }
-  if (lower.includes("insufficient_quota") || lower.includes("billing") || lower.includes("quota")) {
-    return "OpenAI account has no credits / quota. Add billing at platform.openai.com/account/billing.";
+  if (
+    lower.includes("insufficient_quota") ||
+    lower.includes("billing") ||
+    lower.includes("quota")
+  ) {
+    return "OpenAI has no credits. Add billing, or set GEMINI_API_KEY for free-tier Gemini.";
   }
   if (status === 429 || lower.includes("rate limit")) {
-    return "OpenAI rate limit hit. Wait a minute and try again.";
+    return "OpenAI rate limit. Wait a minute, or use GEMINI_API_KEY.";
   }
-  if (lower.includes("model") || status === 404) {
-    return "Model not available. Set AI_MODEL to gpt-4o-mini in Vercel env and Redeploy.";
-  }
-  // Show a short sanitized reason so we can debug
-  const short = errMsg.replace(/\s+/g, " ").slice(0, 160);
-  return `OpenAI error (${status || "?"}): ${short || "unknown"}. Check Vercel logs and your API key/billing.`;
+  const short = errMsg.replace(/\s+/g, " ").slice(0, 140);
+  return `OpenAI error (${status || "?"}): ${short || "unknown"}`;
 }
 
-export async function socraticReply(
+function friendlyGemini(status: number, errMsg: string): string {
+  const lower = errMsg.toLowerCase();
+  if (status === 400 && lower.includes("api key")) {
+    return "Invalid GEMINI_API_KEY. Get a key at aistudio.google.com/apikey, set it in Vercel, Redeploy.";
+  }
+  if (status === 403 || lower.includes("permission") || lower.includes("api_key")) {
+    return "Gemini API key rejected. Check GEMINI_API_KEY in Vercel and Redeploy.";
+  }
+  if (status === 429 || lower.includes("quota") || lower.includes("rate")) {
+    return "Gemini quota/rate limit. Wait a bit and try again.";
+  }
+  if (lower.includes("not found") || lower.includes("model")) {
+    return "Gemini model not available. Set AI_MODEL to gemini-2.5-flash or gemini-2.0-flash-001 and Redeploy.";
+  }
+  const short = errMsg.replace(/\s+/g, " ").slice(0, 140);
+  return `Gemini error (${status || "?"}): ${short || "unknown"}`;
+}
+
+async function replyOpenAI(
+  key: string,
   history: ChatMessage[],
   userMessage: string
 ): Promise<TutorResult> {
-  const key = process.env.OPENAI_API_KEY?.trim();
-  if (!key) {
-    return {
-      message:
-        "Server is missing OPENAI_API_KEY. Add it in Vercel → Settings → Environment Variables (exact name), then Redeploy.",
-      is_correct: null,
-      hint_level: 0,
-      session_complete: false,
-    };
-  }
-
   const model = process.env.AI_MODEL?.trim() || "gpt-4o-mini";
-
   const messages = [
     { role: "system" as const, content: SYSTEM },
     ...history.slice(-12).map((m) => ({
@@ -124,58 +131,166 @@ export async function socraticReply(
     { role: "user" as const, content: userMessage },
   ];
 
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: 0.6,
-        max_tokens: 1024,
-        response_format: { type: "json_object" },
-      }),
-    });
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.6,
+      max_tokens: 1024,
+      response_format: { type: "json_object" },
+    }),
+  });
 
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      const errMsg =
-        data?.error?.message ||
-        data?.error?.code ||
-        data?.error?.type ||
-        `HTTP ${res.status}`;
-      console.error("[socraticReply]", res.status, errMsg);
-      return {
-        message: friendlyError(res.status, String(errMsg)),
-        is_correct: null,
-        hint_level: 0,
-        session_complete: false,
-      };
-    }
-
-    const text = data?.choices?.[0]?.message?.content || "";
-    if (!text) {
-      console.error("[socraticReply] empty content", JSON.stringify(data).slice(0, 300));
-      return {
-        message: "OpenAI returned an empty reply. Try again, or check model name (gpt-4o-mini).",
-        is_correct: null,
-        hint_level: 0,
-        session_complete: false,
-      };
-    }
-    return parseJson(text);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[socraticReply] fetch failed", msg);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errMsg =
+      data?.error?.message ||
+      data?.error?.code ||
+      data?.error?.type ||
+      `HTTP ${res.status}`;
+    console.error("[openai]", res.status, errMsg);
     return {
-      message: `Network/server error talking to OpenAI: ${msg.slice(0, 120)}. Try again in a moment.`,
+      message: friendlyOpenAI(res.status, String(errMsg)),
       is_correct: null,
       hint_level: 0,
       session_complete: false,
     };
   }
+
+  const text = data?.choices?.[0]?.message?.content || "";
+  if (!text) {
+    return {
+      message: "OpenAI returned an empty reply. Try again.",
+      is_correct: null,
+      hint_level: 0,
+      session_complete: false,
+    };
+  }
+  return parseJson(text);
+}
+
+async function replyGemini(
+  key: string,
+  history: ChatMessage[],
+  userMessage: string
+): Promise<TutorResult> {
+  // Prefer current Flash models; AI_MODEL can override
+  const model =
+    process.env.AI_MODEL?.trim() ||
+    process.env.GEMINI_MODEL?.trim() ||
+    "gemini-2.5-flash";
+
+  const contents = [
+    ...history.slice(-12).map((m) => ({
+      role: m.role === "user" ? "user" : "model",
+      parts: [{ text: m.content }],
+    })),
+    { role: "user", parts: [{ text: userMessage }] },
+  ];
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+    model
+  )}:generateContent?key=${encodeURIComponent(key)}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: SYSTEM }] },
+      contents,
+      generationConfig: {
+        temperature: 0.6,
+        maxOutputTokens: 1024,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const errMsg =
+      data?.error?.message ||
+      data?.error?.status ||
+      data?.error?.code ||
+      `HTTP ${res.status}`;
+    console.error("[gemini]", res.status, errMsg);
+    return {
+      message: friendlyGemini(res.status, String(errMsg)),
+      is_correct: null,
+      hint_level: 0,
+      session_complete: false,
+    };
+  }
+
+  const text =
+    data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("") ||
+    "";
+  if (!text) {
+    const block = data?.candidates?.[0]?.finishReason || data?.promptFeedback?.blockReason;
+    console.error("[gemini] empty", block, JSON.stringify(data).slice(0, 200));
+    return {
+      message: block
+        ? `Gemini blocked the reply (${block}). Try a different question.`
+        : "Gemini returned an empty reply. Try again.",
+      is_correct: null,
+      hint_level: 0,
+      session_complete: false,
+    };
+  }
+  return parseJson(text);
+}
+
+export async function socraticReply(
+  history: ChatMessage[],
+  userMessage: string
+): Promise<TutorResult> {
+  const geminiKey = process.env.GEMINI_API_KEY?.trim();
+  const openaiKey = process.env.OPENAI_API_KEY?.trim();
+
+  // Prefer Gemini when available (free tier friendly), else OpenAI
+  if (geminiKey) {
+    try {
+      return await replyGemini(geminiKey, history, userMessage);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[gemini] fetch failed", msg);
+      // Fall through to OpenAI if present
+      if (!openaiKey) {
+        return {
+          message: `Gemini network error: ${msg.slice(0, 120)}`,
+          is_correct: null,
+          hint_level: 0,
+          session_complete: false,
+        };
+      }
+    }
+  }
+
+  if (openaiKey) {
+    try {
+      return await replyOpenAI(openaiKey, history, userMessage);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[openai] fetch failed", msg);
+      return {
+        message: `OpenAI network error: ${msg.slice(0, 120)}`,
+        is_correct: null,
+        hint_level: 0,
+        session_complete: false,
+      };
+    }
+  }
+
+  return {
+    message:
+      "No API key configured. In Vercel → Settings → Environment Variables add GEMINI_API_KEY (free) and/or OPENAI_API_KEY, then Redeploy.",
+    is_correct: null,
+    hint_level: 0,
+    session_complete: false,
+  };
 }
