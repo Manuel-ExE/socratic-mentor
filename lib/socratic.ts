@@ -73,55 +73,19 @@ function parseJson(text: string): TutorResult {
   }
 }
 
-function friendlyOpenAI(status: number, errMsg: string): string {
-  const lower = errMsg.toLowerCase();
-  if (
-    lower.includes("incorrect api key") ||
-    lower.includes("invalid api key") ||
-    lower.includes("invalid_api_key") ||
-    lower.includes("authentication") ||
-    status === 401
-  ) {
-    return "Invalid OpenAI API key. Fix OPENAI_API_KEY in Vercel and Redeploy — or add GEMINI_API_KEY instead.";
-  }
-  if (
-    lower.includes("insufficient_quota") ||
-    lower.includes("billing") ||
-    lower.includes("quota")
-  ) {
-    return "OpenAI has no credits. Add billing, or set GEMINI_API_KEY for free-tier Gemini.";
-  }
-  if (status === 429 || lower.includes("rate limit")) {
-    return "OpenAI rate limit. Wait a minute, or use GEMINI_API_KEY.";
-  }
-  const short = errMsg.replace(/\s+/g, " ").slice(0, 140);
-  return `OpenAI error (${status || "?"}): ${short || "unknown"}`;
-}
+type Provider = "grok" | "gemini" | "openai";
 
-function friendlyGemini(status: number, errMsg: string): string {
-  const lower = errMsg.toLowerCase();
-  if (status === 400 && lower.includes("api key")) {
-    return "Invalid GEMINI_API_KEY. Get a key at aistudio.google.com/apikey, set it in Vercel, Redeploy.";
-  }
-  if (status === 403 || lower.includes("permission") || lower.includes("api_key")) {
-    return "Gemini API key rejected. Check GEMINI_API_KEY in Vercel and Redeploy.";
-  }
-  if (status === 429 || lower.includes("quota") || lower.includes("rate")) {
-    return "Gemini quota/rate limit. Wait a bit and try again.";
-  }
-  if (lower.includes("not found") || lower.includes("model")) {
-    return "Gemini model not available. Set AI_MODEL to gemini-2.5-flash or gemini-2.0-flash-001 and Redeploy.";
-  }
-  const short = errMsg.replace(/\s+/g, " ").slice(0, 140);
-  return `Gemini error (${status || "?"}): ${short || "unknown"}`;
-}
-
-async function replyOpenAI(
+async function replyOpenAICompatible(
+  provider: "grok" | "openai",
   key: string,
   history: ChatMessage[],
   userMessage: string
 ): Promise<TutorResult> {
-  const model = process.env.AI_MODEL?.trim() || "gpt-4o-mini";
+  const isGrok = provider === "grok";
+  const base = isGrok ? "https://api.x.ai/v1" : "https://api.openai.com/v1";
+  const defaultModel = isGrok ? "grok-4.5" : "gpt-4o-mini";
+  const model = process.env.AI_MODEL?.trim() || defaultModel;
+
   const messages = [
     { role: "system" as const, content: SYSTEM },
     ...history.slice(-12).map((m) => ({
@@ -131,19 +95,22 @@ async function replyOpenAI(
     { role: "user" as const, content: userMessage },
   ];
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: 0.6,
+    max_tokens: 1024,
+  };
+  // OpenAI supports response_format json_object; xAI is generally compatible
+  body.response_format = { type: "json_object" };
+
+  const res = await fetch(`${base}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${key}`,
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.6,
-      max_tokens: 1024,
-      response_format: { type: "json_object" },
-    }),
+    body: JSON.stringify(body),
   });
 
   const data = await res.json().catch(() => ({}));
@@ -153,9 +120,20 @@ async function replyOpenAI(
       data?.error?.code ||
       data?.error?.type ||
       `HTTP ${res.status}`;
-    console.error("[openai]", res.status, errMsg);
+    console.error(`[${provider}]`, res.status, errMsg);
+    const lower = String(errMsg).toLowerCase();
+    let friendly = `${isGrok ? "Grok" : "OpenAI"} error (${res.status}): ${String(errMsg).slice(0, 140)}`;
+    if (res.status === 401 || lower.includes("api key") || lower.includes("auth")) {
+      friendly = isGrok
+        ? "Invalid XAI_API_KEY. Get a key at console.x.ai, set XAI_API_KEY in Vercel, Redeploy."
+        : "Invalid OPENAI_API_KEY. Fix the key in Vercel and Redeploy.";
+    } else if (res.status === 429 || lower.includes("rate") || lower.includes("quota")) {
+      friendly = isGrok
+        ? "Grok rate limit or quota. Wait a minute or check credits at console.x.ai."
+        : "OpenAI rate limit or billing issue. Check platform.openai.com billing.";
+    }
     return {
-      message: friendlyOpenAI(res.status, String(errMsg)),
+      message: friendly,
       is_correct: null,
       hint_level: 0,
       session_complete: false,
@@ -165,7 +143,7 @@ async function replyOpenAI(
   const text = data?.choices?.[0]?.message?.content || "";
   if (!text) {
     return {
-      message: "OpenAI returned an empty reply. Try again.",
+      message: `${isGrok ? "Grok" : "OpenAI"} returned an empty reply. Try again.`,
       is_correct: null,
       hint_level: 0,
       session_complete: false,
@@ -179,7 +157,6 @@ async function replyGemini(
   history: ChatMessage[],
   userMessage: string
 ): Promise<TutorResult> {
-  // Prefer current Flash models; AI_MODEL can override
   const model =
     process.env.AI_MODEL?.trim() ||
     process.env.GEMINI_MODEL?.trim() ||
@@ -216,11 +193,10 @@ async function replyGemini(
     const errMsg =
       data?.error?.message ||
       data?.error?.status ||
-      data?.error?.code ||
       `HTTP ${res.status}`;
     console.error("[gemini]", res.status, errMsg);
     return {
-      message: friendlyGemini(res.status, String(errMsg)),
+      message: `Gemini error (${res.status}): ${String(errMsg).slice(0, 140)}`,
       is_correct: null,
       hint_level: 0,
       session_complete: false,
@@ -228,15 +204,12 @@ async function replyGemini(
   }
 
   const text =
-    data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("") ||
-    "";
+    data?.candidates?.[0]?.content?.parts
+      ?.map((p: { text?: string }) => p.text || "")
+      .join("") || "";
   if (!text) {
-    const block = data?.candidates?.[0]?.finishReason || data?.promptFeedback?.blockReason;
-    console.error("[gemini] empty", block, JSON.stringify(data).slice(0, 200));
     return {
-      message: block
-        ? `Gemini blocked the reply (${block}). Try a different question.`
-        : "Gemini returned an empty reply. Try again.",
+      message: "Gemini returned an empty reply. Try again.",
       is_correct: null,
       hint_level: 0,
       session_complete: false,
@@ -249,46 +222,68 @@ export async function socraticReply(
   history: ChatMessage[],
   userMessage: string
 ): Promise<TutorResult> {
+  // Prefer Grok (xAI), then Gemini, then OpenAI
+  const xaiKey =
+    process.env.XAI_API_KEY?.trim() || process.env.GROK_API_KEY?.trim();
   const geminiKey = process.env.GEMINI_API_KEY?.trim();
   const openaiKey = process.env.OPENAI_API_KEY?.trim();
 
-  // Prefer Gemini when available (free tier friendly), else OpenAI
+  const tryProviders: { name: Provider; run: () => Promise<TutorResult> }[] =
+    [];
+
+  if (xaiKey) {
+    tryProviders.push({
+      name: "grok",
+      run: () => replyOpenAICompatible("grok", xaiKey, history, userMessage),
+    });
+  }
   if (geminiKey) {
-    try {
-      return await replyGemini(geminiKey, history, userMessage);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[gemini] fetch failed", msg);
-      // Fall through to OpenAI if present
-      if (!openaiKey) {
-        return {
-          message: `Gemini network error: ${msg.slice(0, 120)}`,
-          is_correct: null,
-          hint_level: 0,
-          session_complete: false,
-        };
-      }
-    }
+    tryProviders.push({
+      name: "gemini",
+      run: () => replyGemini(geminiKey, history, userMessage),
+    });
+  }
+  if (openaiKey) {
+    tryProviders.push({
+      name: "openai",
+      run: () => replyOpenAICompatible("openai", openaiKey, history, userMessage),
+    });
   }
 
-  if (openaiKey) {
+  if (tryProviders.length === 0) {
+    return {
+      message:
+        "No API key set. Add XAI_API_KEY (Grok) in Vercel → Environment Variables, then Redeploy. Get a key at console.x.ai",
+      is_correct: null,
+      hint_level: 0,
+      session_complete: false,
+    };
+  }
+
+  let lastError = "";
+  for (const p of tryProviders) {
     try {
-      return await replyOpenAI(openaiKey, history, userMessage);
+      const result = await p.run();
+      // If provider returned a soft error message about auth, try next
+      const softFail =
+        result.message.includes("Invalid") &&
+        result.message.includes("API") &&
+        tryProviders.length > 1;
+      if (softFail) {
+        lastError = result.message;
+        continue;
+      }
+      return result;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error("[openai] fetch failed", msg);
-      return {
-        message: `OpenAI network error: ${msg.slice(0, 120)}`,
-        is_correct: null,
-        hint_level: 0,
-        session_complete: false,
-      };
+      lastError = err instanceof Error ? err.message : String(err);
+      console.error(`[${p.name}] threw`, lastError);
     }
   }
 
   return {
     message:
-      "No API key configured. In Vercel → Settings → Environment Variables add GEMINI_API_KEY (free) and/or OPENAI_API_KEY, then Redeploy.",
+      lastError ||
+      "All providers failed. Check XAI_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY in Vercel and Redeploy.",
     is_correct: null,
     hint_level: 0,
     session_complete: false,

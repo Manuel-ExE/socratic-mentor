@@ -1,43 +1,31 @@
-# Socratic Mentor — Vercel website
+# Socratic Mentor ✦ Socratic AI Tutor
 
-AI tutor that guides students with Socratic questions instead of dumping answers.
+AI tutor that teaches through questions, not lectures.
 
----
+## API keys (Vercel Environment Variables)
 
-## Deploy to Vercel
+| Variable | Provider | Get key |
+|----------|----------|---------|
+| **`XAI_API_KEY`** (preferred) | Grok / xAI | [console.x.ai](https://console.x.ai) |
+| `GEMINI_API_KEY` | Google Gemini | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+| `OPENAI_API_KEY` | OpenAI | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
+| `AI_MODEL` (optional) | Model id | e.g. `grok-4.5`, `gemini-2.5-flash`, `gpt-4o-mini` |
 
-1. Push this repo to GitHub and import on [vercel.com](https://vercel.com).
-2. Framework: **Next.js** (auto-detected).
-3. Add **Environment Variables**:
+Priority when multiple keys are set: **Grok → Gemini → OpenAI**.
 
-| Name | Required? | Where to get it |
-|------|-----------|-----------------|
-| `GEMINI_API_KEY` | Recommended (free) | [Google AI Studio](https://aistudio.google.com/apikey) |
-| `OPENAI_API_KEY` | Optional | [OpenAI API keys](https://platform.openai.com/api-keys) |
-| `AI_MODEL` | Optional | e.g. `gemini-2.5-flash` or `gpt-4o-mini` |
+After changing env vars: **Deployments → Redeploy**.
 
-If **both** keys are set, **Gemini is used first**. OpenAI is the fallback.
+## Routes
 
-4. Deploy. After any env change, **Redeploy**.
+- `/` — landing page  
+- `/chat` — live Socratic dialogue  
 
----
-
-## Run locally
+## Local
 
 ```bash
 cp .env.example .env.local
-# set GEMINI_API_KEY and/or OPENAI_API_KEY
+# set XAI_API_KEY=...
 
 npm install
 npm run dev
 ```
-
-Open [http://localhost:3000](http://localhost:3000).
-
----
-
-## Notes
-
-- Keys stay on the server only.
-- Errors in chat explain key / billing / quota issues.
-- Default models: Gemini `gemini-2.5-flash`, OpenAI `gpt-4o-mini`.
