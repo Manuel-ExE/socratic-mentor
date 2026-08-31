@@ -91,331 +91,294 @@ export default function Home() {
   }
 
   return (
-    <div className="shell">
-      <div className="orb orb-1" aria-hidden="true" />
-      <div className="orb orb-2" aria-hidden="true" />
-
-      <header className="header glass">
-        <div className="brand">
-          <span className="logo" aria-hidden="true">
-            ✦
-          </span>
-          <div>
-            <h1>Socratic Mentor</h1>
-            <p className="tag">Guided reasoning — not just answers</p>
-          </div>
-        </div>
-        <button type="button" className="ghost" onClick={reset}>
-          New chat
-        </button>
-      </header>
-
-      <main
-        className="chat"
-        role="log"
-        aria-live="polite"
-        aria-relevant="additions"
-      >
-        {messages.map((m, i) => (
-          <div
-            key={i}
-            className={`bubble glass ${
-              m.role === "user" ? "student" : "mentor"
-            }`}
-          >
-            {m.role === "assistant" && m.is_correct === true && (
-              <span className="badge correct" title="Looks correct">
-                ✓
-              </span>
-            )}
-            {m.role === "assistant" && m.is_correct === false && (
-              <span className="badge incorrect" title="Not quite">
-                ✗
-              </span>
-            )}
-            {m.content}
-            {m.session_complete && (
-              <div className="complete">Session complete — great work!</div>
-            )}
-          </div>
-        ))}
-        {loading && (
-          <div className="bubble glass mentor typing" aria-busy="true">
-            Thinking…
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </main>
-
-      <footer className="footer glass">
-        <form
-          className="form"
-          onSubmit={(e) => {
-            e.preventDefault();
-            send(input);
-          }}
-        >
-          <label htmlFor="chat-input" className="sr-only">
-            Message
-          </label>
-          <input
-            id="chat-input"
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a problem or question…"
-            maxLength={4000}
-            disabled={loading}
-            autoComplete="off"
-          />
-          <button type="submit" className="send" disabled={loading || !input.trim()}>
-            Send
-            <span className="arrow" aria-hidden="true">
-              →
+    <div className="page">
+      <div className="frame">
+        <header className="header">
+          <div className="brand">
+            <span className="spark" aria-hidden="true">
+              ✦
             </span>
+            <div>
+              <h1>Socratic Mentor</h1>
+              <p className="tag">Guided reasoning — not just answers</p>
+            </div>
+          </div>
+          <button type="button" className="btn-ghost" onClick={reset}>
+            New chat
           </button>
-        </form>
-        <div className="chips">
-          <button
-            type="button"
-            className="chip"
-            onClick={() => send("I need a hint")}
-            disabled={loading}
+        </header>
+
+        <main className="chat" role="log" aria-live="polite">
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              className={`bubble ${m.role === "user" ? "user" : "bot"}`}
+            >
+              {m.role === "assistant" && m.is_correct === true && (
+                <span className="badge ok">✓</span>
+              )}
+              {m.role === "assistant" && m.is_correct === false && (
+                <span className="badge no">✗</span>
+              )}
+              {m.content}
+              {m.session_complete && (
+                <div className="done">Session complete — great work!</div>
+              )}
+            </div>
+          ))}
+          {loading && <div className="bubble bot dim">Thinking…</div>}
+          <div ref={bottomRef} />
+        </main>
+
+        <footer className="composer">
+          <form
+            className="row"
+            onSubmit={(e) => {
+              e.preventDefault();
+              send(input);
+            }}
           >
-            Hint
-          </button>
-          <button
-            type="button"
-            className="chip"
-            onClick={() => send("Explain the idea, not the full answer")}
-            disabled={loading}
-          >
-            Explain idea
-          </button>
-          <button
-            type="button"
-            className="chip"
-            onClick={() => send("I think I got it")}
-            disabled={loading}
-          >
-            I got it
-          </button>
-        </div>
-      </footer>
+            <label htmlFor="chat-input" className="sr-only">
+              Message
+            </label>
+            <input
+              id="chat-input"
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type a problem or question…"
+              maxLength={4000}
+              disabled={loading}
+              autoComplete="off"
+            />
+            <button
+              type="submit"
+              className="btn-send"
+              disabled={loading || !input.trim()}
+            >
+              Send
+              <span aria-hidden="true">→</span>
+            </button>
+          </form>
+          <div className="chips">
+            <button
+              type="button"
+              className="chip"
+              onClick={() => send("I need a hint")}
+              disabled={loading}
+            >
+              Hint
+            </button>
+            <button
+              type="button"
+              className="chip"
+              onClick={() => send("Explain the idea, not the full answer")}
+              disabled={loading}
+            >
+              Explain idea
+            </button>
+            <button
+              type="button"
+              className="chip"
+              onClick={() => send("I think I got it")}
+              disabled={loading}
+            >
+              I got it
+            </button>
+          </div>
+        </footer>
+      </div>
 
       <style jsx>{`
-        .shell {
-          position: relative;
-          max-width: 720px;
-          margin: 0 auto;
+        .page {
           min-height: 100vh;
           display: flex;
+          align-items: stretch;
+          justify-content: center;
+          padding: 1.5rem 1rem;
+        }
+        .frame {
+          width: 100%;
+          max-width: 680px;
+          min-height: calc(100vh - 3rem);
+          display: flex;
           flex-direction: column;
-          padding: 1.25rem 1rem 1.5rem;
-          z-index: 1;
-        }
-        .orb {
-          position: fixed;
-          border-radius: 50%;
-          filter: blur(80px);
-          pointer-events: none;
-          z-index: 0;
-        }
-        .orb-1 {
-          width: 420px;
-          height: 420px;
-          top: -80px;
-          right: -60px;
-          background: rgba(124, 58, 237, 0.45);
-        }
-        .orb-2 {
-          width: 320px;
-          height: 320px;
-          bottom: 10%;
-          left: -80px;
-          background: rgba(192, 38, 211, 0.3);
-        }
-        .glass {
-          background: var(--panel);
-          backdrop-filter: blur(var(--blur));
-          -webkit-backdrop-filter: blur(var(--blur));
-          border: 1px solid var(--border);
-          box-shadow: var(--shadow);
+          background: var(--glass);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
+          border: 1px solid var(--glass-border);
+          border-radius: 24px;
+          box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+          overflow: hidden;
         }
         .header {
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0.85rem 1.1rem;
-          border-radius: var(--radius);
-          margin-bottom: 1.25rem;
+          padding: 1.1rem 1.35rem;
+          border-bottom: 1px solid var(--glass-border);
+          flex-shrink: 0;
         }
         .brand {
           display: flex;
-          gap: 0.75rem;
           align-items: center;
+          gap: 0.7rem;
         }
-        .logo {
-          font-size: 1.35rem;
+        .spark {
           color: var(--accent);
-          line-height: 1;
+          font-size: 1.25rem;
         }
         h1 {
-          font-size: 1.15rem;
+          font-size: 1.2rem;
           font-weight: 700;
-          letter-spacing: 0.02em;
+          letter-spacing: -0.01em;
         }
         .tag {
+          font-size: 0.78rem;
           color: var(--muted);
-          font-size: 0.8rem;
-          margin-top: 0.1rem;
+          margin-top: 0.15rem;
         }
         .chat {
           flex: 1;
           overflow-y: auto;
+          padding: 1.25rem 1.35rem;
           display: flex;
           flex-direction: column;
           gap: 0.85rem;
-          padding: 0.25rem 0 1rem;
         }
         .bubble {
-          max-width: 88%;
-          padding: 0.95rem 1.15rem;
+          max-width: 92%;
+          padding: 1rem 1.15rem;
           border-radius: var(--radius);
-          line-height: 1.5;
           font-size: 0.95rem;
+          line-height: 1.55;
           white-space: pre-wrap;
+          border: 1px solid transparent;
         }
-        .mentor {
+        .bot {
           align-self: flex-start;
-          background: var(--mentor);
-          border-color: rgba(167, 139, 250, 0.25);
+          background: var(--mentor-bg);
+          border-color: rgba(167, 139, 250, 0.28);
         }
-        .student {
+        .user {
           align-self: flex-end;
-          background: var(--student);
-          border-color: rgba(232, 121, 249, 0.3);
+          background: var(--student-bg);
+          border-color: rgba(232, 121, 249, 0.32);
         }
-        .typing {
-          opacity: 0.75;
+        .dim {
+          opacity: 0.7;
           font-style: italic;
           color: var(--muted);
         }
         .badge {
           display: inline-flex;
+          width: 1.2rem;
+          height: 1.2rem;
           align-items: center;
           justify-content: center;
-          width: 1.25rem;
-          height: 1.25rem;
-          border-radius: 999px;
+          border-radius: 50%;
           font-size: 0.7rem;
           font-weight: 700;
-          margin-right: 0.4rem;
-          vertical-align: middle;
+          margin-right: 0.35rem;
         }
-        .badge.correct {
-          background: rgba(22, 101, 52, 0.6);
-          color: var(--success);
+        .badge.ok {
+          background: rgba(22, 101, 52, 0.55);
+          color: #86efac;
         }
-        .badge.incorrect {
-          background: rgba(127, 29, 29, 0.55);
-          color: var(--danger);
+        .badge.no {
+          background: rgba(127, 29, 29, 0.5);
+          color: #fca5a5;
         }
-        .complete {
-          margin-top: 0.55rem;
-          padding-top: 0.55rem;
-          border-top: 1px solid var(--border);
-          color: var(--success);
+        .done {
+          margin-top: 0.5rem;
+          padding-top: 0.5rem;
+          border-top: 1px solid var(--glass-border);
+          color: #86efac;
           font-size: 0.85rem;
-          font-weight: 500;
         }
-        .footer {
-          border-radius: var(--radius);
-          padding: 0.9rem 1rem 1rem;
+        .composer {
+          flex-shrink: 0;
+          padding: 1rem 1.25rem 1.2rem;
+          border-top: 1px solid var(--glass-border);
+          background: rgba(0, 0, 0, 0.2);
         }
-        .form {
+        .row {
           display: flex;
-          gap: 0.5rem;
+          gap: 0.55rem;
         }
         input {
           flex: 1;
-          background: rgba(0, 0, 0, 0.25);
-          border: 1px solid var(--border);
+          background: rgba(0, 0, 0, 0.35);
+          border: 1px solid var(--glass-border);
+          border-radius: 999px;
+          padding: 0.85rem 1.25rem;
           color: var(--text);
-          border-radius: var(--radius-pill);
-          padding: 0.8rem 1.2rem;
           outline: none;
-          transition: border-color 0.15s ease;
         }
         input::placeholder {
           color: var(--muted);
         }
         input:focus {
           border-color: var(--accent);
-          box-shadow: 0 0 0 3px var(--accent-soft);
+          box-shadow: 0 0 0 3px var(--accent-dim);
         }
-        .send {
+        .btn-send {
           display: inline-flex;
           align-items: center;
-          gap: 0.4rem;
+          gap: 0.35rem;
+          padding: 0.85rem 1.25rem;
+          border-radius: 999px;
+          border: 1px solid var(--accent);
           background: transparent;
           color: var(--accent);
-          border: 1px solid var(--accent);
-          border-radius: var(--radius-pill);
-          padding: 0.75rem 1.2rem;
-          font-weight: 600;
-          font-size: 0.85rem;
-          letter-spacing: 0.04em;
+          font-weight: 650;
+          font-size: 0.82rem;
+          letter-spacing: 0.06em;
           text-transform: uppercase;
           cursor: pointer;
-          transition: background 0.15s ease, color 0.15s ease;
+          white-space: nowrap;
+          transition: background 0.15s, color 0.15s;
         }
-        .send:not(:disabled):hover {
+        .btn-send:not(:disabled):hover {
           background: var(--accent);
           color: #1a0a2e;
         }
-        .send:disabled {
+        .btn-send:disabled {
           opacity: 0.4;
           cursor: not-allowed;
         }
-        .arrow {
-          font-size: 1rem;
-        }
-        .ghost {
+        .btn-ghost {
           background: transparent;
+          border: 1px solid var(--glass-border);
           color: var(--muted);
-          border: 1px solid var(--border);
-          border-radius: var(--radius-pill);
+          border-radius: 999px;
           padding: 0.45rem 0.95rem;
-          font-size: 0.85rem;
+          font-size: 0.82rem;
           cursor: pointer;
-          transition: color 0.15s ease, border-color 0.15s ease;
         }
-        .ghost:hover {
+        .btn-ghost:hover {
           color: var(--text);
-          border-color: var(--border-strong);
+          border-color: rgba(255, 255, 255, 0.3);
         }
         .chips {
           display: flex;
           flex-wrap: wrap;
           gap: 0.45rem;
-          margin-top: 0.7rem;
+          margin-top: 0.75rem;
         }
         .chip {
-          background: rgba(0, 0, 0, 0.2);
-          border: 1px solid var(--border);
+          background: rgba(0, 0, 0, 0.25);
+          border: 1px solid var(--glass-border);
           color: var(--muted);
-          border-radius: var(--radius-pill);
-          padding: 0.35rem 0.85rem;
-          font-size: 0.78rem;
-          letter-spacing: 0.02em;
+          border-radius: 999px;
+          padding: 0.4rem 0.9rem;
+          font-size: 0.8rem;
           cursor: pointer;
-          transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
         }
         .chip:hover:not(:disabled) {
           color: var(--accent);
           border-color: var(--accent);
-          background: var(--accent-soft);
+          background: var(--accent-dim);
         }
         .chip:disabled {
           opacity: 0.45;
@@ -424,12 +387,19 @@ export default function Home() {
           position: absolute;
           width: 1px;
           height: 1px;
-          padding: 0;
-          margin: -1px;
           overflow: hidden;
           clip: rect(0, 0, 0, 0);
-          white-space: nowrap;
-          border: 0;
+        }
+        @media (max-width: 560px) {
+          .page {
+            padding: 0;
+          }
+          .frame {
+            min-height: 100vh;
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+          }
         }
       `}</style>
     </div>
