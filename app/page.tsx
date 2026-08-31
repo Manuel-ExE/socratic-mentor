@@ -99,7 +99,10 @@ export default function Home() {
               ✦
             </span>
             <div>
-              <h1>Socratic Mentor</h1>
+              <h1>
+                Socratic Mentor <span className="sep">✦</span>{" "}
+                <span className="sub-title">Socratic AI Tutor</span>
+              </h1>
               <p className="tag">Guided reasoning — not just answers</p>
             </div>
           </div>
